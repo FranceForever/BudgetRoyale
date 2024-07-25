@@ -1,40 +1,47 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, auth } from '../firebase';
-import { doc, getDoc, setDoc, collection, query, onSnapshot, addDoc, updateDoc, Timestamp, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, onSnapshot, addDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import '../App.css'; // Ensure this path is correct based on your file structure
 import Chart from 'chart.js/auto';
 
 const Dashboard = () => {
   const [expenses, setExpenses] = useState([]);
   const [income, setIncome] = useState([]);
-  const [recurring, setRecurring] = useState([]); // Define recurring state variable
+  const [recurring, setRecurring] = useState([]);
   const [expenseName, setExpenseName] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
-  const [expenseCategory, setExpenseCategory] = useState(''); // New state for category
+  const [expenseCategory, setExpenseCategory] = useState('');
   const [incomeName, setIncomeName] = useState('');
   const [incomeAmount, setIncomeAmount] = useState('');
   const [recurringName, setRecurringName] = useState('');
   const [recurringAmount, setRecurringAmount] = useState('');
-  const [recurringType, setRecurringType] = useState(''); // expense or income
-  const [recurringFrequency, setRecurringFrequency] = useState(''); // daily, weekly, monthly
-  const [budget, setBudget] = useState(0);
+  const [recurringType, setRecurringType] = useState('');
+  const [recurringFrequency, setRecurringFrequency] = useState('');
+  const [budget, setBudget] = useState({ daily: 0, weekly: 0, monthly: 0, annual: 0 });
   const [points, setPoints] = useState(0);
-  const [totalSpent, setTotalSpent] = useState(0); // New state for tracking total spent
-  const [totalIncome, setTotalIncome] = useState(0); // New state for tracking total income
-  const [newBudget, setNewBudget] = useState(''); // New state for setting a new budget
-  const [itemBudgetIncrease, setItemBudgetIncrease] = useState(''); // New state for increasing item budget
+  const [totalSpent, setTotalSpent] = useState({ daily: 0, weekly: 0, monthly: 0, annual: 0 });
+  const [totalIncome, setTotalIncome] = useState(0);
+  const [newBudget, setNewBudget] = useState('');
+  const [itemBudgetIncrease, setItemBudgetIncrease] = useState('');
   const [unlockedFeatures, setUnlockedFeatures] = useState({});
-  const [errorMessage, setErrorMessage] = useState(''); // New state for error messages
-  const [theme, setTheme] = useState('light-mode'); // New state for theme
+  const [errorMessage, setErrorMessage] = useState('');
+  const [theme, setTheme] = useState('light-mode');
+  const [savingsGoals, setSavingsGoals] = useState({ daily: 0, weekly: 0, monthly: 0, annual: 0 });
+  const [savings, setSavings] = useState({ daily: 0, weekly: 0, monthly: 0, annual: 0 });
+  const [newSavingsGoal, setNewSavingsGoal] = useState('');
+  const [savingsPeriod, setSavingsPeriod] = useState('monthly');
+
+
+  const [budgetPeriod, setBudgetPeriod] = useState('monthly'); // Add this line to define the budgetPeriod state and its setter function
 
   const rewardTiers = {
-    premiumCategories: 100,       // Points required to unlock premium categories
-    budgetAnalysis: 200,         // Points required to unlock budget analysis tools
-    personalizedAdvice: 300,      // Points required to unlock personalized financial advice
-    goalTracking: 400,            // Points required to unlock goal setting and tracking
-    themesSkins: 150,             // Points required to unlock themes and skins
-    profileCustomization: 250,    // Points required to unlock profile customization
-    customNotifications: 350,     // Points required to unlock custom notifications
+    premiumCategories: 100,
+    budgetAnalysis: 200,
+    personalizedAdvice: 300,
+    goalTracking: 400,
+    themesSkins: 150,
+    profileCustomization: 250,
+    customNotifications: 350,
   };
 
   const expenseDistributionChartRef = useRef(null);
@@ -48,11 +55,12 @@ const Dashboard = () => {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          setBudget(userData.budget);
+          setBudget(userData.budget || { daily: 0, weekly: 0, monthly: 0, annual: 0 });
           setPoints(userData.points || 0);
-          setTotalSpent(userData.totalSpent || 0); // Fetch total spent
-          setTotalIncome(userData.totalIncome || 0); // Fetch total income
+          setTotalSpent(userData.totalSpent || { daily: 0, weekly: 0, monthly: 0, annual: 0 });
+          setTotalIncome(userData.totalIncome || 0);
           setUnlockedFeatures(userData.unlockedFeatures || {});
+          setSavingsGoals(userData.savingsGoals || { daily: 0, weekly: 0, monthly: 0, annual: 0 }); // Add this line
         }
 
         // Set up real-time listener for expenses
@@ -63,6 +71,19 @@ const Dashboard = () => {
             expensesArray.push({ id: doc.id, ...doc.data() });
           });
           setExpenses(expensesArray);
+
+          const totalSpent = { daily: 0, weekly: 0, monthly: 0, annual: 0 };
+          expensesArray.forEach((expense) => {
+            const timestamp = expense.timestamp;
+            if (timestamp) {
+              const date = new Date(timestamp.seconds * 1000);
+              totalSpent.daily += expense.amount; // Modify this logic to match your requirements
+              totalSpent.weekly += expense.amount; // Modify this logic to match your requirements
+              totalSpent.monthly += expense.amount; // Modify this logic to match your requirements
+              totalSpent.annual += expense.amount; // Modify this logic to match your requirements
+            }
+          });
+          setTotalSpent(totalSpent);
         });
 
         // Set up real-time listener for income
@@ -75,7 +96,7 @@ const Dashboard = () => {
           setIncome(incomeArray);
         });
 
-        // Commented out the recurring listener for now
+        // Set up real-time listener for recurring transactions
         const recurringQuery = query(collection(db, 'users', user.uid, 'recurring'));
         const unsubscribeRecurring = onSnapshot(recurringQuery, (querySnapshot) => {
           const recurringArray = [];
@@ -89,7 +110,7 @@ const Dashboard = () => {
         return () => {
           unsubscribeExpenses();
           unsubscribeIncome();
-          unsubscribeRecurring(); // Commented out for now
+          unsubscribeRecurring();
         };
       }
     };
@@ -102,21 +123,22 @@ const Dashboard = () => {
     if (user) {
       let category = expenseCategory;
       const newExpense = { name: expenseName, amount: parseFloat(expenseAmount), category, timestamp: Timestamp.now() };
-      if (totalSpent + newExpense.amount > budget) {
+
+      if (totalSpent[budgetPeriod] + newExpense.amount > budget[budgetPeriod]) {
         setErrorMessage('Adding this expense will exceed your budget.');
         return;
       }
 
       await addDoc(collection(db, 'users', user.uid, 'expenses'), newExpense);
 
-      const newTotalSpent = totalSpent + parseFloat(expenseAmount);
+      const newTotalSpent = { ...totalSpent, [budgetPeriod]: totalSpent[budgetPeriod] + parseFloat(expenseAmount) };
 
       // Calculate points
       let newPoints = points + 500; // Base points for adding an expense
       if (category) {
         newPoints += 5; // Bonus points for categorizing the expense
       }
-      if (newTotalSpent <= budget) {
+      if (newTotalSpent[budgetPeriod] <= budget[budgetPeriod]) {
         newPoints += 15; // Bonus points for staying within budget
       }
 
@@ -154,14 +176,24 @@ const Dashboard = () => {
       await addDoc(collection(db, 'users', user.uid, 'income'), newIncome);
 
       const newTotalIncome = totalIncome + parseFloat(incomeAmount);
+      const newSavings = { ...savings, [budgetPeriod]: newTotalIncome - totalSpent[budgetPeriod] };
+
+      let newPoints = points;
+      if (newSavings[budgetPeriod] >= savingsGoals[budgetPeriod]) {
+        newPoints += newSavings[budgetPeriod]; // Award points based on the savings achieved
+      }
 
       await updateDoc(doc(db, 'users', user.uid), {
-        totalIncome: newTotalIncome
+        totalIncome: newTotalIncome,
+        savings: newSavings,
+        points: newPoints
       });
 
       setIncomeName('');
       setIncomeAmount('');
       setTotalIncome(newTotalIncome);
+      setSavings(newSavings);
+      setPoints(newPoints);
     }
   };
 
@@ -174,7 +206,7 @@ const Dashboard = () => {
         amount: parseFloat(recurringAmount),
         type: recurringType,
         frequency: recurringFrequency,
-        lastAdded: Timestamp.now() // Initialize lastAdded to the current timestamp
+        lastAdded: Timestamp.now()
       };
       await addDoc(collection(db, 'users', user.uid, 'recurring'), newRecurring);
 
@@ -183,15 +215,15 @@ const Dashboard = () => {
       setRecurringType('');
       setRecurringFrequency('');
     }
-  };
+  }; 
 
   const handleSetBudget = async (e) => {
     e.preventDefault();
     const user = auth.currentUser;
     if (user && newBudget !== '') {
-      let updatedBudget = parseFloat(newBudget);
+      let updatedBudget = { ...budget, [budgetPeriod]: parseFloat(newBudget) };
       let updatedPoints = points;
-      if (budget > 0 && newBudget > budget) {
+      if (budget[budgetPeriod] > 0 && newBudget > budget[budgetPeriod]) {
         if (points < 50) {
           setErrorMessage('You need at least 50 points to increase the budget.');
           return;
@@ -221,7 +253,7 @@ const Dashboard = () => {
       }
 
       const updatedPoints = points - 20;
-      const updatedBudget = budget + parseFloat(itemBudgetIncrease);
+      const updatedBudget = { ...budget, [budgetPeriod]: budget[budgetPeriod] + parseFloat(itemBudgetIncrease) };
 
       await setDoc(doc(db, 'users', user.uid), {
         budget: updatedBudget,
@@ -234,6 +266,21 @@ const Dashboard = () => {
       setErrorMessage(''); // Clear error message
     }
   };
+
+  const handleSetSavingsGoal = async (e) => {
+    e.preventDefault();
+    const user = auth.currentUser;
+    if (user && newSavingsGoal !== '') {
+      let updatedSavingsGoals = { ...savingsGoals, [savingsPeriod]: parseFloat(newSavingsGoal) };
+      await setDoc(doc(db, 'users', user.uid), {
+        savingsGoals: updatedSavingsGoals,
+      }, { merge: true });
+  
+      setSavingsGoals(updatedSavingsGoals);
+      setNewSavingsGoal('');
+      setErrorMessage(''); // Clear error message
+    }
+  };  
 
   const handleLogout = async () => {
     try {
@@ -269,7 +316,7 @@ const Dashboard = () => {
         setErrorMessage(''); // Clear error message
       }
     }
-  };  
+  };
 
   useEffect(() => {
     const generateCharts = () => {
@@ -390,158 +437,244 @@ const Dashboard = () => {
     }
   }, [expenses, income]);
 
+  const calculateSavings = (totalIncome, totalSpent) => {
+    const savings = {
+      daily: totalIncome - totalSpent.daily,
+      weekly: totalIncome - totalSpent.weekly,
+      monthly: totalIncome - totalSpent.monthly,
+      annual: totalIncome - totalSpent.annual
+    };
+    setSavings(savings);
+  };
+
   return (
     <div className={`app ${theme}`}>
-      <h2>Dashboard</h2>
-      <button className="logout-button" onClick={handleLogout}>Logout</button>
-      <button className="toggle-theme-button" onClick={handleToggleTheme}>
-        {theme === 'light-mode' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-      </button>
+      {/* Section: Page title, logout button, dark mode toggle */}
+      <header className="dashboard-header">
+        <h2>Dashboard</h2>
+        <button className="logout-button" onClick={handleLogout}>Logout</button>
+        <button className="toggle-theme-button" onClick={handleToggleTheme}>
+          {theme === 'light-mode' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+        </button>
+      </header>
       {errorMessage && <p className="error-message">{errorMessage}</p>}
+
+      {/* Section: Account summary */}
       <div className="cards-container">
         <div className="card">
           <p>Points</p>
           <h3>{points}</h3>
         </div>
         <div className="card">
-          <p>Budget</p>
-          <h3>${budget}</h3>
+          <p>Daily Budget</p>
+          <h3>${budget.daily}</h3>
         </div>
         <div className="card">
-          <p>Total Spent</p>
-          <h3>${totalSpent}</h3>
+          <p>Weekly Budget</p>
+          <h3>${budget.weekly}</h3>
+        </div>
+        <div className="card">
+          <p>Monthly Budget</p>
+          <h3>${budget.monthly}</h3>
+        </div>
+        <div className="card">
+          <p>Annual Budget</p>
+          <h3>${budget.annual}</h3>
+        </div>
+        <div className="card">
+          <p>Total Spent (Daily)</p>
+          <h3>${totalSpent.daily}</h3>
+        </div>
+        <div className="card">
+          <p>Total Spent (Weekly)</p>
+          <h3>${totalSpent.weekly}</h3>
+        </div>
+        <div className="card">
+          <p>Total Spent (Monthly)</p>
+          <h3>${totalSpent.monthly}</h3>
+        </div>
+        <div className="card">
+          <p>Total Spent (Annual)</p>
+          <h3>${totalSpent.annual}</h3>
         </div>
         <div className="card">
           <p>Total Income</p>
           <h3>${totalIncome}</h3>
         </div>
+        <div className="card">
+          <p>Savings (Daily)</p>
+          <h3>${savingsGoals.daily}</h3>
+        </div>
+        <div className="card">
+          <p>Savings (Weekly)</p>
+          <h3>${savingsGoals.weekly}</h3>
+        </div>
+        <div className="card">
+          <p>Savings (Monthly)</p>
+          <h3>${savingsGoals.monthly}</h3>
+        </div>
+        <div className="card">
+          <p>Savings (Annual)</p>
+          <h3>${savingsGoals.annual}</h3>
+        </div>
       </div>
-      <form onSubmit={handleAddExpense}>
-        <input
-          type="text"
-          value={expenseName}
-          onChange={(e) => setExpenseName(e.target.value)}
-          placeholder="Expense Name"
-        />
-        <input
-          type="number"
-          value={expenseAmount}
-          onChange={(e) => setExpenseAmount(e.target.value)}
-          placeholder="Expense Amount"
-        />
-        {unlockedFeatures.premiumCategories && (
+
+      {/* Section: Enter transactions, set budget, progress bars */}
+      <section className="transaction-section">
+        <form onSubmit={handleAddExpense}>
           <input
             type="text"
-            value={expenseCategory}
-            onChange={(e) => setExpenseCategory(e.target.value)}
-            placeholder="Category (optional)"
+            value={expenseName}
+            onChange={(e) => setExpenseName(e.target.value)}
+            placeholder="Expense Name"
           />
-        )}
-        <button type="submit">Add Expense</button>
-      </form>
-      <form onSubmit={handleAddIncome}>
-        <input
-          type="text"
-          value={incomeName}
-          onChange={(e) => setIncomeName(e.target.value)}
-          placeholder="Income Name"
-        />
-        <input
-          type="number"
-          value={incomeAmount}
-          onChange={(e) => setIncomeAmount(e.target.value)}
-          placeholder="Income Amount"
-        />
-        <button type="submit">Add Income</button>
-      </form>
-      {/* Commented out recurring form for now */}
-      <form onSubmit={handleAddRecurring}>
-        <input
-          type="text"
-          value={recurringName}
-          onChange={(e) => setRecurringName(e.target.value)}
-          placeholder="Recurring Transaction Name"
-        />
-        <input
-          type="number"
-          value={recurringAmount}
-          onChange={(e) => setRecurringAmount(e.target.value)}
-          placeholder="Amount"
-        />
-        <select value={recurringType} onChange={(e) => setRecurringType(e.target.value)}>
-          <option value="">Select Type</option>
-          <option value="expense">Expense</option>
-          <option value="income">Income</option>
-        </select>
-        <select value={recurringFrequency} onChange={(e) => setRecurringFrequency(e.target.value)}>
-          <option value="">Select Frequency</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-        </select>
-        <button type="submit">Add Recurring Transaction</button>
-      </form>
-      <form onSubmit={handleSetBudget}>
-        <input
-          type="number"
-          value={newBudget}
-          onChange={(e) => setNewBudget(e.target.value)}
-          placeholder="Set New Budget"
-        />
-        <button type="submit">Set Budget</button>
-      </form>
-      <form onSubmit={handleIncreaseItemBudget}>
-        <input
-          type="number"
-          value={itemBudgetIncrease}
-          onChange={(e) => setItemBudgetIncrease(e.target.value)}
-          placeholder="Increase Budget By"
-        />
-        <button type="submit">Increase Budget</button>
-      </form>
-      <BudgetUsage budget={budget} totalSpent={totalSpent} theme={theme} /> {/* Added here */}
-      <ul>
-        {expenses.map((expense) => (
-          <li key={expense.id} className={`expense-item ${theme}`}>{expense.name}: ${expense.amount} - {expense.category}</li>
-        ))}
-      </ul>
-      <ul>
-        {income.map((incomeItem) => (
-          <li key={incomeItem.id} className={`income-item ${theme}`}>{incomeItem.name}: ${incomeItem.amount}</li>
-        ))}
-      </ul>
-      <ul>
-        {recurring.map((recurringItem) => (
-          <li key={recurringItem.id} className={`recurring-item ${recurringItem.type} ${theme}`}>{recurringItem.name}: ${recurringItem.amount} - {recurringItem.type} - {recurringItem.frequency}</li>
-        ))}
-      </ul>
-      <div className="chart-container">
-        <canvas id="expenseDistributionChart"></canvas>
-      </div>
-      <div className="chart-container">
-        <canvas id="expenseTrendsChart"></canvas>
-      </div>
-      <div className="chart-container">
-        <canvas id="incomeTrendsChart"></canvas>
-      </div>
-      {unlockedFeatures.budgetAnalysis && <BudgetAnalysis />}
-      {unlockedFeatures.personalizedAdvice && <PersonalizedAdvice />}
-      {unlockedFeatures.goalTracking && <GoalTracking />}
-      {unlockedFeatures.themesSkins && <ThemesSkins />}
-      {unlockedFeatures.profileCustomization && <ProfileCustomization />}
-      {unlockedFeatures.customNotifications && <CustomNotifications />}
+          <input
+            type="number"
+            value={expenseAmount}
+            onChange={(e) => setExpenseAmount(e.target.value)}
+            placeholder="Expense Amount"
+          />
+          {unlockedFeatures.premiumCategories && (
+            <input
+              type="text"
+              value={expenseCategory}
+              onChange={(e) => setExpenseCategory(e.target.value)}
+              placeholder="Category (optional)"
+            />
+          )}
+          <button type="submit">Add Expense</button>
+        </form>
+        <form onSubmit={handleAddIncome}>
+          <input
+            type="text"
+            value={incomeName}
+            onChange={(e) => setIncomeName(e.target.value)}
+            placeholder="Income Name"
+          />
+          <input
+            type="number"
+            value={incomeAmount}
+            onChange={(e) => setIncomeAmount(e.target.value)}
+            placeholder="Income Amount"
+          />
+          <button type="submit">Add Income</button>
+        </form>
+        <form onSubmit={handleAddRecurring}>
+          <input
+            type="text"
+            value={recurringName}
+            onChange={(e) => setRecurringName(e.target.value)}
+            placeholder="Recurring Transaction Name"
+          />
+          <input
+            type="number"
+            value={recurringAmount}
+            onChange={(e) => setRecurringAmount(e.target.value)}
+            placeholder="Amount"
+          />
+          <select value={recurringType} onChange={(e) => setRecurringType(e.target.value)}>
+            <option value="">Select Type</option>
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+          </select>
+          <select value={recurringFrequency} onChange={(e) => setRecurringFrequency(e.target.value)}>
+            <option value="">Select Frequency</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+          <button type="submit">Add Recurring Transaction</button>
+        </form>
+        <form onSubmit={handleSetBudget}>
+          <input
+            type="number"
+            value={newBudget}
+            onChange={(e) => setNewBudget(e.target.value)}
+            placeholder="Set New Budget"
+          />
+          <select value={budgetPeriod} onChange={(e) => setBudgetPeriod(e.target.value)}>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="annual">Annual</option>
+          </select>
+          <button type="submit">Set Budget</button>
+        </form>
+        <form onSubmit={handleIncreaseItemBudget}>
+          <input
+            type="number"
+            value={itemBudgetIncrease}
+            onChange={(e) => setItemBudgetIncrease(e.target.value)}
+            placeholder="Increase Budget By"
+          />
+          <button type="submit">Increase Budget</button>
+        </form>
+        <form onSubmit={handleSetSavingsGoal}>
+          <input
+            type="number"
+            value={newSavingsGoal}
+            onChange={(e) => setNewSavingsGoal(e.target.value)}
+            placeholder="Set New Savings Goal"
+          />
+          <select value={savingsPeriod} onChange={(e) => setSavingsPeriod(e.target.value)}>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="annual">Annual</option>
+          </select>
+          <button type="submit">Set Savings Goal</button>
+        </form>
+        <BudgetUsage budget={budget} totalSpent={totalSpent} theme={theme} />
+      </section>
+
+      {/* Section: Lists of expenses and incomes */}
+      <section className="list-section">
+        <h3>Expenses</h3>
+        <ul>
+          {expenses.map((expense) => (
+            <li key={expense.id} className={`expense-item ${theme}`}>{expense.name}: ${expense.amount} - {expense.category}</li>
+          ))}
+        </ul>
+        <h3>Income</h3>
+        <ul>
+          {income.map((incomeItem) => (
+            <li key={incomeItem.id} className={`income-item ${theme}`}>{incomeItem.name}: ${incomeItem.amount}</li>
+          ))}
+        </ul>
+        <h3>Recurring Transactions</h3>
+        <ul>
+          {recurring.map((recurringItem) => (
+            <li key={recurringItem.id} className={`recurring-item ${recurringItem.type} ${theme}`}>{recurringItem.name}: ${recurringItem.amount} - {recurringItem.type} - {recurringItem.frequency}</li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Section: Graphs */}
+      <section className="chart-section">
+        <div className="chart-container">
+          <canvas id="expenseDistributionChart"></canvas>
+        </div>
+        <div className="chart-container">
+          <canvas id="expenseTrendsChart"></canvas>
+        </div>
+        <div className="chart-container">
+          <canvas id="incomeTrendsChart"></canvas>
+        </div>
+      </section>
+
+      {/* Section: Other potential future features */}
+      <section className="feature-section">
+        {unlockedFeatures.personalizedAdvice && <PersonalizedAdvice />}
+        {unlockedFeatures.goalTracking && <GoalTracking />}
+        {unlockedFeatures.themesSkins && <ThemesSkins />}
+        {unlockedFeatures.profileCustomization && <ProfileCustomization />}
+        {unlockedFeatures.customNotifications && <CustomNotifications />}
+      </section>
     </div>
   );
 };
 
 // Components for the unlocked features
-const BudgetAnalysis = () => (
-  <div className="feature">
-    <h3>Budget Analysis</h3>
-    {/* Add your budget analysis tool implementation here */}
-  </div>
-);
-
 const PersonalizedAdvice = () => (
   <div className="feature">
     <h3>Personalized Financial Advice</h3>
@@ -578,16 +711,34 @@ const CustomNotifications = () => (
 );
 
 const BudgetUsage = ({ budget, totalSpent, theme }) => {
-  const remainingBudget = budget - totalSpent;
-  const percentageSpent = (totalSpent / budget) * 100;
+  const periods = ['daily', 'weekly', 'monthly', 'annual'];
 
   return (
     <div className={`budget-usage ${theme}`}>
-      <div className="budget-bar">
-        <div className="spent-bar" style={{ width: `${percentageSpent}%` }}></div>
-      </div>
-      <p>{`Remaining Budget: $${remainingBudget}`}</p>
-      <p>{`Spent: $${totalSpent}`}</p>
+      {periods.map((period) => {
+        const remainingBudget = budget[period] - (totalSpent[period] || 0);
+        const percentageSpent = ((totalSpent[period] || 0) / budget[period]) * 100;
+        return (
+          <div key={period}>
+            <h4>{`${period.charAt(0).toUpperCase() + period.slice(1)} Budget`}</h4>
+            <div className="budget-bar">
+              <div
+                className="spent-bar"
+                style={{
+                  width: `${Math.min(100, percentageSpent)}%`,
+                  backgroundColor: remainingBudget < 0 ? 'red' : 'green',
+                }}
+              ></div>
+            </div>
+            <p>
+              {remainingBudget < 0
+                ? `Budget exceeded by $${Math.abs(remainingBudget).toFixed(2)}`
+                : `Remaining Budget: $${remainingBudget.toFixed(2)}`}
+            </p>
+            <p>{`Spent: $${(totalSpent[period] || 0).toFixed(2)}`}</p>
+          </div>
+        );
+      })}
     </div>
   );
 };
