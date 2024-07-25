@@ -3,6 +3,7 @@ import { db, auth } from '../firebase';
 import { doc, getDoc, setDoc, collection, query, onSnapshot, addDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import '../App.css'; // Ensure this path is correct based on your file structure
 import Chart from 'chart.js/auto';
+import categorizeExpense from '../utils/categorizeExpense'; // Import the categorize function
 
 const Dashboard = () => {
   const [expenses, setExpenses] = useState([]);
@@ -26,11 +27,6 @@ const Dashboard = () => {
   const [unlockedFeatures, setUnlockedFeatures] = useState({});
   const [errorMessage, setErrorMessage] = useState('');
   const [theme, setTheme] = useState('light-mode');
-  const [savingsGoals, setSavingsGoals] = useState({ daily: 0, weekly: 0, monthly: 0, annual: 0 });
-  const [savings, setSavings] = useState({ daily: 0, weekly: 0, monthly: 0, annual: 0 });
-  const [newSavingsGoal, setNewSavingsGoal] = useState('');
-  const [savingsPeriod, setSavingsPeriod] = useState('monthly');
-
 
   const [budgetPeriod, setBudgetPeriod] = useState('monthly'); // Add this line to define the budgetPeriod state and its setter function
 
@@ -60,7 +56,6 @@ const Dashboard = () => {
           setTotalSpent(userData.totalSpent || { daily: 0, weekly: 0, monthly: 0, annual: 0 });
           setTotalIncome(userData.totalIncome || 0);
           setUnlockedFeatures(userData.unlockedFeatures || {});
-          setSavingsGoals(userData.savingsGoals || { daily: 0, weekly: 0, monthly: 0, annual: 0 }); // Add this line
         }
 
         // Set up real-time listener for expenses
@@ -122,6 +117,11 @@ const Dashboard = () => {
     const user = auth.currentUser;
     if (user) {
       let category = expenseCategory;
+      
+      if (!category) {
+        category = await categorizeExpense(expenseName); // Use OpenAI to categorize the expense
+      }
+      
       const newExpense = { name: expenseName, amount: parseFloat(expenseAmount), category, timestamp: Timestamp.now() };
 
       if (totalSpent[budgetPeriod] + newExpense.amount > budget[budgetPeriod]) {
@@ -176,24 +176,14 @@ const Dashboard = () => {
       await addDoc(collection(db, 'users', user.uid, 'income'), newIncome);
 
       const newTotalIncome = totalIncome + parseFloat(incomeAmount);
-      const newSavings = { ...savings, [budgetPeriod]: newTotalIncome - totalSpent[budgetPeriod] };
-
-      let newPoints = points;
-      if (newSavings[budgetPeriod] >= savingsGoals[budgetPeriod]) {
-        newPoints += newSavings[budgetPeriod]; // Award points based on the savings achieved
-      }
 
       await updateDoc(doc(db, 'users', user.uid), {
-        totalIncome: newTotalIncome,
-        savings: newSavings,
-        points: newPoints
+        totalIncome: newTotalIncome
       });
 
       setIncomeName('');
       setIncomeAmount('');
       setTotalIncome(newTotalIncome);
-      setSavings(newSavings);
-      setPoints(newPoints);
     }
   };
 
@@ -215,7 +205,7 @@ const Dashboard = () => {
       setRecurringType('');
       setRecurringFrequency('');
     }
-  }; 
+  };
 
   const handleSetBudget = async (e) => {
     e.preventDefault();
@@ -266,21 +256,6 @@ const Dashboard = () => {
       setErrorMessage(''); // Clear error message
     }
   };
-
-  const handleSetSavingsGoal = async (e) => {
-    e.preventDefault();
-    const user = auth.currentUser;
-    if (user && newSavingsGoal !== '') {
-      let updatedSavingsGoals = { ...savingsGoals, [savingsPeriod]: parseFloat(newSavingsGoal) };
-      await setDoc(doc(db, 'users', user.uid), {
-        savingsGoals: updatedSavingsGoals,
-      }, { merge: true });
-  
-      setSavingsGoals(updatedSavingsGoals);
-      setNewSavingsGoal('');
-      setErrorMessage(''); // Clear error message
-    }
-  };  
 
   const handleLogout = async () => {
     try {
@@ -437,16 +412,6 @@ const Dashboard = () => {
     }
   }, [expenses, income]);
 
-  const calculateSavings = (totalIncome, totalSpent) => {
-    const savings = {
-      daily: totalIncome - totalSpent.daily,
-      weekly: totalIncome - totalSpent.weekly,
-      monthly: totalIncome - totalSpent.monthly,
-      annual: totalIncome - totalSpent.annual
-    };
-    setSavings(savings);
-  };
-
   return (
     <div className={`app ${theme}`}>
       {/* Section: Page title, logout button, dark mode toggle */}
@@ -500,22 +465,6 @@ const Dashboard = () => {
         <div className="card">
           <p>Total Income</p>
           <h3>${totalIncome}</h3>
-        </div>
-        <div className="card">
-          <p>Savings (Daily)</p>
-          <h3>${savingsGoals.daily}</h3>
-        </div>
-        <div className="card">
-          <p>Savings (Weekly)</p>
-          <h3>${savingsGoals.weekly}</h3>
-        </div>
-        <div className="card">
-          <p>Savings (Monthly)</p>
-          <h3>${savingsGoals.monthly}</h3>
-        </div>
-        <div className="card">
-          <p>Savings (Annual)</p>
-          <h3>${savingsGoals.annual}</h3>
         </div>
       </div>
 
@@ -608,21 +557,6 @@ const Dashboard = () => {
             placeholder="Increase Budget By"
           />
           <button type="submit">Increase Budget</button>
-        </form>
-        <form onSubmit={handleSetSavingsGoal}>
-          <input
-            type="number"
-            value={newSavingsGoal}
-            onChange={(e) => setNewSavingsGoal(e.target.value)}
-            placeholder="Set New Savings Goal"
-          />
-          <select value={savingsPeriod} onChange={(e) => setSavingsPeriod(e.target.value)}>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="annual">Annual</option>
-          </select>
-          <button type="submit">Set Savings Goal</button>
         </form>
         <BudgetUsage budget={budget} totalSpent={totalSpent} theme={theme} />
       </section>
@@ -718,6 +652,8 @@ const BudgetUsage = ({ budget, totalSpent, theme }) => {
       {periods.map((period) => {
         const remainingBudget = budget[period] - (totalSpent[period] || 0);
         const percentageSpent = ((totalSpent[period] || 0) / budget[period]) * 100;
+        const budgetExceeded = remainingBudget < 0;
+
         return (
           <div key={period}>
             <h4>{`${period.charAt(0).toUpperCase() + period.slice(1)} Budget`}</h4>
@@ -725,16 +661,12 @@ const BudgetUsage = ({ budget, totalSpent, theme }) => {
               <div
                 className="spent-bar"
                 style={{
-                  width: `${Math.min(100, percentageSpent)}%`,
-                  backgroundColor: remainingBudget < 0 ? 'red' : 'green',
+                  width: `${Math.min(percentageSpent, 100)}%`,
+                  backgroundColor: budgetExceeded ? 'red' : 'green',
                 }}
               ></div>
             </div>
-            <p>
-              {remainingBudget < 0
-                ? `Budget exceeded by $${Math.abs(remainingBudget).toFixed(2)}`
-                : `Remaining Budget: $${remainingBudget.toFixed(2)}`}
-            </p>
+            <p>{budgetExceeded ? `Budget exceeded by $${Math.abs(remainingBudget).toFixed(2)}` : `Remaining Budget: $${remainingBudget.toFixed(2)}`}</p>
             <p>{`Spent: $${(totalSpent[period] || 0).toFixed(2)}`}</p>
           </div>
         );
