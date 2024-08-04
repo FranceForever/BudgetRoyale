@@ -1,4 +1,35 @@
-# Getting Started with Create React App
+# BudgetRoyale
+
+## Overview
+
+BudgetRoyale is a gamified personal finance tracking web application designed specifically for university students. The app allows users to manage their expenses, income, and budgets efficiently while rewarding them with points for staying within budget and categorizing expenses. Users can unlock advanced features like personalized financial advice, goal tracking, and custom notifications by accumulating points.
+
+## Features
+
+- **Expense and Income Tracking**: Track daily, weekly, monthly, and annual expenses and income.
+- **Budget Management**: Set and manage budgets for different periods.
+- **Recurring Transactions**: Add recurring transactions with different frequencies.
+- **Visualizations**: Visualize expense and income trends with charts.
+- **AI-Based Categorization**: Categorize expenses using AI-based categorization.
+- **Points and Rewards**: Earn points for staying within budget and categorizing expenses, which can unlock premium features such as personalized advice and goal tracking.
+- **Dark Mode and Light Mode**: Toggle between dark mode and light mode themes.
+- **Real-Time Updates**: Real-time updates with Firestore integration.
+
+
+## Tech Stack
+
+- **React**: For building the user interface.
+- **Firebase**: For backend services including Firestore and Authentication.
+- **Chart.js**: For data visualization.
+- **OpenAI API**: For AI-based expense categorization.
+
+### Prerequisites
+
+Ensure you have the following installed on your machine:
+- Node.js
+- npm (Node Package Manager)
+- Firebase account and project
+- OpenAI API key
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
