@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, collection, query, onSnapshot, addDoc, updateDoc, 
 import '../App.css'; // Ensure this path is correct based on your file structure
 import Chart from 'chart.js/auto';
 import categorizeExpense from '../utils/categorizeExpense'; // Import the categorize function
+import categorizeExpense from '../utils/categorizeExpense'; // Import the categorize function
 
 const Dashboard = () => {
   const [expenses, setExpenses] = useState([]);
@@ -115,10 +116,9 @@ const Dashboard = () => {
   const handleAddExpense = async (e) => {
     e.preventDefault();
     const user = auth.currentUser;
-    
+
     if (user) {
       let category = expenseCategory;
-  
       
       const newExpense = { 
         name: expenseName, 
