@@ -25,3 +25,4 @@ yarn-error.log*
 #files
 /src/firebase.js
 /src/components/categorizeExpense.js
+.env.local
