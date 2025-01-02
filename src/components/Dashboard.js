@@ -230,7 +230,7 @@ const Dashboard = () => {
       setBudget(updatedBudget);
       setPoints(updatedPoints);
       setNewBudget('');
-      setErrorMessage(''); // Clear error message
+      setErrorMessage('');
     }
   };
 
@@ -239,7 +239,7 @@ const Dashboard = () => {
     const user = auth.currentUser;
     if (user && itemBudgetIncrease !== '') {
       if (points < 20) {
-        setErrorMessage('You need at least 20 points to increase the item budget.');
+        setErrorMessage('You require atleast 20 points to increase the item budget.');
         return;
       }
 
