@@ -254,7 +254,7 @@ const Dashboard = () => {
       setBudget(updatedBudget);
       setPoints(updatedPoints);
       setItemBudgetIncrease('');
-      setErrorMessage(''); // Clear error message
+      setErrorMessage('');
     }
   };
 
@@ -289,7 +289,7 @@ const Dashboard = () => {
           theme: newTheme
         });
         setTheme(newTheme);
-        setErrorMessage(''); // Clear error message
+        setErrorMessage('');
       }
     }
   };
